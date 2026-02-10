@@ -129,28 +129,6 @@ flutter build web
 flutter build apk --release
 ```
 
-## Food Import (Optional)
-
-Bulk import foods using JSON:
-
-1. Add Firebase Admin service account JSON at project root as:
-
-```
-serviceAccountKey.json
-```
-
-2. Add foods to:
-
-```
-data/foods.json
-```
-
-3. Run:
-
-```
-node tools/import_foods.js
-```
-
 ## Notes
 
 - `google-services.json` and `GoogleService-Info.plist` are not committed.
