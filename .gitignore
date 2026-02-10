@@ -1,6 +1,8 @@
 # Miscellaneous
+.env
 *.class
 *.log
+serviceAccountKey.json
 *.pyc
 *.swp
 .DS_Store
@@ -41,3 +43,4 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+server/.env

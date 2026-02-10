@@ -1,4 +1,4 @@
-// ignore_for_file: use_super_parameters
+// ignore_for_file: use_super_parameters, strict_top_level_inference
 
 import 'package:flutter/material.dart';
 

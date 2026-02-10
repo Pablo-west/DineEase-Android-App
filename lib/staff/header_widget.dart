@@ -1,4 +1,4 @@
-// ignore_for_file: library_private_types_in_public_api, prefer_const_constructors, avoid_print, prefer_const_literals_to_create_immutables, depend_on_referenced_packages
+// ignore_for_file: library_private_types_in_public_api, prefer_const_constructors, avoid_print, prefer_const_literals_to_create_immutables, depend_on_referenced_packages, strict_top_level_inference
 
 // import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -115,7 +115,7 @@ class _HeaderWidgetState extends State<HeaderWidget> {
                       WidgetStateProperty.all<Color>(Color(0xff131e29))),
               onPressed: () {
                 Navigator.of(context).pop(
-                  MaterialPageRoute(builder: (context) => const MyApp()),
+                  MaterialPageRoute(builder: (context) => MyApp()),
                 );
                 Navigator.of(content).pop(false);
               },
