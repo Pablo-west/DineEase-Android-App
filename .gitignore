@@ -32,6 +32,11 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+node_modules/
+android/build/
+android/package-lock.json
+flutter.lnk
+functions/
 
 # Symbolication related
 app.*.symbols
