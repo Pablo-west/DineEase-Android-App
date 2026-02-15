@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dine_ease/global.dart';
 import '../../core/models/food_item.dart';
 import '../../core/state/app_state.dart';
 import '../../core/theme/app_colors.dart';
@@ -81,6 +82,8 @@ class _FoodDetailsPageState extends State<FoodDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
+    final safeImagePath = item.imagePath.trim();
+    final isSpecialScaled = safeImagePath == kSpecialScaledImageUrl;
     final size = MediaQuery.of(context).size;
     // Image takes up 45% of the screen height
     final double imageHeight = size.height * 0.45;
@@ -97,34 +100,37 @@ class _FoodDetailsPageState extends State<FoodDetailsPage> {
             left: 0,
             right: 0,
             height: imageHeight,
-            child: item.imagePath.startsWith('http')
-                ? CachedNetworkImage(
-                    imageUrl: item.imagePath,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => const Center(
-                      child: SizedBox(
-                        height: 32,
-                        width: 32,
-                        child: CircularProgressIndicator(strokeWidth: 3),
+            child: safeImagePath.startsWith('http')
+                ? Transform.scale(
+                    scale: isSpecialScaled ? 0.9 : 1.0,
+                    child: CachedNetworkImage(
+                      imageUrl: safeImagePath,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => const Center(
+                        child: SizedBox(
+                          height: 32,
+                          width: 32,
+                          child: CircularProgressIndicator(strokeWidth: 3),
+                        ),
                       ),
+                      errorWidget: (context, url, error) =>
+                          const Icon(Icons.broken_image_outlined),
+                      errorListener: (error) {
+                        debugPrint(
+                          'FoodDetails image load failed: $safeImagePath',
+                        );
+                        debugPrint('FoodDetails image error: $error');
+                      },
                     ),
-                    errorWidget: (context, url, error) =>
-                        const Icon(Icons.broken_image_outlined),
-                    errorListener: (error) {
-                      debugPrint(
-                        'FoodDetails image load failed: ${item.imagePath}',
-                      );
-                      debugPrint('FoodDetails image error: $error');
-                    },
                   )
-                : item.imagePath.trim().isEmpty
+                : safeImagePath.isEmpty
                     ? Container(
                         color: AppColors.muted,
                         alignment: Alignment.center,
                         child: const Icon(Icons.broken_image_outlined),
                       )
                     : Image.asset(
-                        item.imagePath,
+                        safeImagePath,
                         fit: BoxFit.cover,
                       ),
           ),

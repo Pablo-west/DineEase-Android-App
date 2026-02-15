@@ -2,10 +2,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/state/app_state.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/widgets/app_dialogs.dart';
 import '../../core/widgets/app_logo_title.dart';
 import '../../core/widgets/delivery_destination_sheet.dart';
 
@@ -16,6 +18,7 @@ class ProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final destination = state.destination;
+    final versionFuture = PackageInfo.fromPlatform();
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -27,44 +30,7 @@ class ProfilePage extends StatelessWidget {
             children: [
               Text('Profile', style: AppTextStyles.heading),
               IconButton(
-                onPressed: () async {
-                  showDialog<void>(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (_) => Dialog(
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18)),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-                        child: Row(
-                          children: [
-                            const SizedBox(
-                              height: 36,
-                              width: 36,
-                              child: CircularProgressIndicator(strokeWidth: 3),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                'Signing out...',
-                                style: AppTextStyles.subtitle,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                  await FirebaseAuth.instance.signOut();
-                  AppScope.of(context).setProfile(
-                    displayName: '',
-                    email: '',
-                    phone: '',
-                  );
-                  if (context.mounted) {
-                    Navigator.of(context, rootNavigator: true).pop();
-                  }
-                },
+                onPressed: () => _signOut(context),
                 icon: const Icon(Icons.logout, color: Colors.redAccent),
               ),
             ],
@@ -100,8 +66,18 @@ class ProfilePage extends StatelessWidget {
               state.phone.isEmpty ? 'Not set' : state.phone,
             ),
           ),
-          _listTile('Payment Methods', 'Cash, Card, Mobile Money'),
-          const SizedBox(height: 20),
+          GestureDetector(
+            onTap: () {
+              showInfoDialog(
+                context,
+                title: 'Payment Methods',
+                message:
+                    'This page is under development. Payment methods are not saved yet.',
+              );
+            },
+            child: _listTile('Payment Methods', 'Cash, Card, Mobile Money'),
+          ),
+          const SizedBox(height: 8),
           _sectionTitle('Support'),
           const SizedBox(height: 8),
           GestureDetector(
@@ -129,11 +105,37 @@ class ProfilePage extends StatelessWidget {
               onAction: () {},
             ),
           ),
+          const SizedBox(height: 30),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _signOut(context),
+              icon: const Icon(Icons.logout, color: Colors.redAccent),
+              label: const Text(
+                'Sign Out',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.redAccent),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
           const SizedBox(height: 18),
           Center(
-            child: Text(
-              'Version 2.10 • IpabloWest',
-              style: AppTextStyles.subtitle,
+            child: FutureBuilder<PackageInfo>(
+              future: versionFuture,
+              builder: (context, snapshot) {
+                final info = snapshot.data;
+                final label = info == null
+                    ? 'Version -- • IpabloWest'
+                    : 'Version ${info.version} • IpabloWest';
+                return Text(label, style: AppTextStyles.subtitle);
+              },
             ),
           ),
           const SizedBox(height: 8),
@@ -258,6 +260,44 @@ class ProfilePage extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+Future<void> _signOut(BuildContext context) async {
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+        child: Row(
+          children: [
+            const SizedBox(
+              height: 36,
+              width: 36,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                'Signing out...',
+                style: AppTextStyles.subtitle,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+  await FirebaseAuth.instance.signOut();
+  AppScope.of(context).setProfile(
+    displayName: '',
+    email: '',
+    phone: '',
+  );
+  if (context.mounted) {
+    Navigator.of(context, rootNavigator: true).pop();
   }
 }
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../core/data/sample_data.dart';
+import '../../core/data/food_categories.dart';
 import '../../core/models/food_item.dart';
 import '../../core/state/app_state.dart';
 import '../../core/theme/app_colors.dart';
@@ -171,22 +171,36 @@ class _FilterSearchPageState extends State<FilterSearchPage> {
   Widget _categoryChips() {
     return SizedBox(
       height: 50,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          for (final category in foodCategories)
-            CategoryChip(
-              emoji: category['emoji']!,
-              label: category['label']!,
-              selected: _selectedCategory == category['label'],
-              onTap: () {
-                setState(() {
-                  final label = category['label']!;
-                  _selectedCategory = _selectedCategory == label ? null : label;
-                });
-              },
-            ),
-        ],
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('food_categories')
+            .orderBy('label')
+            .snapshots(),
+        builder: (context, snapshot) {
+          final labels = snapshot.hasData
+              ? snapshot.data!.docs
+                  .map((doc) => (doc.data()['label'] ?? '').toString())
+                  .toList(growable: false)
+              : defaultFoodCategoryLabels;
+          final categories = normalizeCategoryLabels(labels);
+
+          return ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final label in categories)
+                CategoryChip(
+                  emoji: categoryEmojiForLabel(label),
+                  label: label,
+                  selected: _selectedCategory == label,
+                  onTap: () {
+                    setState(() {
+                      _selectedCategory = _selectedCategory == label ? null : label;
+                    });
+                  },
+                ),
+            ],
+          );
+        },
       ),
     );
   }

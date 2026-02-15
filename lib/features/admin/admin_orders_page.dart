@@ -17,6 +17,7 @@ class _AdminOrdersPageState extends State<AdminOrdersPage> {
   final _searchController = TextEditingController();
   String _query = '';
   String _stageFilter = 'all';
+  DateTimeRange? _selectedDateRange;
 
   @override
   void dispose() {
@@ -39,6 +40,8 @@ class _AdminOrdersPageState extends State<AdminOrdersPage> {
             _searchBar(),
             const SizedBox(height: 10),
             _filterChips(),
+            const SizedBox(height: 10),
+            _dateFilterBar(),
             const SizedBox(height: 12),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -67,6 +70,7 @@ class _AdminOrdersPageState extends State<AdminOrdersPage> {
                       .map(_AdminOrderView.fromDoc)
                       .where(_matchesSearch)
                       .where(_matchesStage)
+                      .where(_matchesDate)
                       .toList(growable: false);
                   if (orders.isEmpty) {
                     return Center(
@@ -90,6 +94,8 @@ class _AdminOrdersPageState extends State<AdminOrdersPage> {
                     stageCounts[order.stage] =
                         (stageCounts[order.stage] ?? 0) + 1;
                   }
+                  const previewLimit = 5;
+                  final previewOrders = orders.take(previewLimit).toList();
                   return ListView(
                     children: [
                       _OrdersSummary(
@@ -98,8 +104,31 @@ class _AdminOrdersPageState extends State<AdminOrdersPage> {
                         stageCounts: stageCounts,
                         activeStage: _stageFilter,
                       ),
+                      if (orders.length > previewLimit) ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => _FilteredOrdersPage(
+                                    orders: orders,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.open_in_new),
+                            label: Text(
+                              'View All (${orders.length})',
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
-                      for (final order in orders) _AdminOrderCard(order: order),
+                      for (final order in previewOrders)
+                        _AdminOrderCard(order: order),
                     ],
                   );
                 },
@@ -174,6 +203,149 @@ class _AdminOrdersPageState extends State<AdminOrdersPage> {
   bool _matchesStage(_AdminOrderView order) {
     if (_stageFilter == 'all') return true;
     return order.stage == _stageFilter;
+  }
+
+  bool _matchesDate(_AdminOrderView order) {
+    if (_selectedDateRange == null) return true;
+    final placed = order.placedAt;
+    if (placed == null) return false;
+    final start = DateTime(
+      _selectedDateRange!.start.year,
+      _selectedDateRange!.start.month,
+      _selectedDateRange!.start.day,
+    );
+    final end = DateTime(
+      _selectedDateRange!.end.year,
+      _selectedDateRange!.end.month,
+      _selectedDateRange!.end.day,
+      23,
+      59,
+      59,
+      999,
+    );
+    return !placed.isBefore(start) && !placed.isAfter(end);
+  }
+
+  Widget _dateFilterBar() {
+    final label = _selectedDateRange == null
+        ? 'All dates'
+        : '${_selectedDateRange!.start.year}-${_selectedDateRange!.start.month.toString().padLeft(2, '0')}-${_selectedDateRange!.start.day.toString().padLeft(2, '0')} to ${_selectedDateRange!.end.year}-${_selectedDateRange!.end.month.toString().padLeft(2, '0')}-${_selectedDateRange!.end.day.toString().padLeft(2, '0')}';
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () async {
+              final now = DateTime.now();
+              final picked = await showDateRangePicker(
+                context: context,
+                initialDateRange: _selectedDateRange ??
+                    DateTimeRange(
+                      start: DateTime(now.year, now.month, now.day),
+                      end: DateTime(now.year, now.month, now.day),
+                    ),
+                firstDate: DateTime(2020),
+                lastDate: DateTime(now.year + 2),
+              );
+              if (picked != null) {
+                setState(() => _selectedDateRange = picked);
+              }
+            },
+            icon: const Icon(Icons.calendar_month_outlined),
+            label: Text('Date Range: $label'),
+            style: OutlinedButton.styleFrom(
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            ),
+          ),
+        ),
+        if (_selectedDateRange != null) ...[
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: 'Clear date filter',
+            onPressed: () => setState(() => _selectedDateRange = null),
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _FilteredOrdersPage extends StatefulWidget {
+  final List<_AdminOrderView> orders;
+
+  const _FilteredOrdersPage({
+    required this.orders,
+  });
+
+  @override
+  State<_FilteredOrdersPage> createState() => _FilteredOrdersPageState();
+}
+
+class _FilteredOrdersPageState extends State<_FilteredOrdersPage> {
+  late List<_AdminOrderView> _orders;
+
+  @override
+  void initState() {
+    super.initState();
+    _orders = List<_AdminOrderView>.from(widget.orders);
+  }
+
+  void _onStageChanged(String orderId, String newStage) {
+    setState(() {
+      _orders = _orders
+          .map(
+            (order) => order.id == orderId
+                ? order.copyWith(stage: newStage)
+                : order,
+          )
+          .toList(growable: false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const Icon(Icons.arrow_back),
+                  ),
+                  const SizedBox(width: 4),
+                  Text('Filtered Orders', style: AppTextStyles.heading),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${_orders.length} order(s)',
+                style: AppTextStyles.subtitle,
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView(
+                  children: [
+                    for (final order in _orders)
+                      _AdminOrderCard(
+                        order: order,
+                        onStageChanged: (newStage) =>
+                            _onStageChanged(order.id, newStage),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -313,8 +485,12 @@ class _OrdersSummary extends StatelessWidget {
 
 class _AdminOrderCard extends StatelessWidget {
   final _AdminOrderView order;
+  final ValueChanged<String>? onStageChanged;
 
-  const _AdminOrderCard({required this.order});
+  const _AdminOrderCard({
+    required this.order,
+    this.onStageChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -349,7 +525,10 @@ class _AdminOrderCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              _StageDropdown(order: order),
+              _StageDropdown(
+                order: order,
+                onStageChanged: onStageChanged,
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -360,6 +539,11 @@ class _AdminOrderCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             '$itemCount items ◾ ${order.paymentLabel}',
+            style: AppTextStyles.subtitle,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            order.deliveryLabel,
             style: AppTextStyles.subtitle,
           ),
           const SizedBox(height: 10),
@@ -452,8 +636,12 @@ Color stageColor(String stage) {
 
 class _StageDropdown extends StatelessWidget {
   final _AdminOrderView order;
+  final ValueChanged<String>? onStageChanged;
 
-  const _StageDropdown({required this.order});
+  const _StageDropdown({
+    required this.order,
+    this.onStageChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -472,14 +660,44 @@ class _StageDropdown extends StatelessWidget {
               .collection('orders')
               .doc(order.id)
               .update({'stage': value});
+          if (order.userId.isNotEmpty) {
+            await FirebaseFirestore.instance.collection('notices').add({
+              'userId': order.userId,
+              'title': 'Order Status Updated',
+              'message':
+                  'Order #${order.orderNumber} is now ${_stageLabel(value)}.',
+              'orderId': order.id,
+              'orderNumber': order.orderNumber,
+              'foodNames': order.itemTitles,
+              'stage': value,
+              'read': false,
+              'createdAt': FieldValue.serverTimestamp(),
+            });
+          }
+          onStageChanged?.call(value);
         },
       ),
     );
+  }
+
+  String _stageLabel(String stage) {
+    switch (stage) {
+      case 'preparing':
+        return 'Preparing';
+      case 'inKitchen':
+        return 'In Kitchen';
+      case 'delivered':
+        return 'Delivered';
+      case 'placed':
+      default:
+        return 'Placed';
+    }
   }
 }
 
 class _AdminOrderView {
   final String id;
+  final String userId;
   final String orderNumber;
   final String userName;
   final String userPhone;
@@ -487,9 +705,12 @@ class _AdminOrderView {
   final String stage;
   final double total;
   final String paymentLabel;
+  final String deliveryLabel;
+  final DateTime? placedAt;
 
   const _AdminOrderView({
     required this.id,
+    required this.userId,
     required this.orderNumber,
     required this.userName,
     required this.userPhone,
@@ -497,10 +718,30 @@ class _AdminOrderView {
     required this.stage,
     required this.total,
     required this.paymentLabel,
+    required this.deliveryLabel,
+    required this.placedAt,
   });
 
   List<String> get itemTitles =>
       items.map((item) => item.title).toSet().toList(growable: false);
+
+  _AdminOrderView copyWith({
+    String? stage,
+  }) {
+    return _AdminOrderView(
+      id: id,
+      userId: userId,
+      orderNumber: orderNumber,
+      userName: userName,
+      userPhone: userPhone,
+      items: items,
+      stage: stage ?? this.stage,
+      total: total,
+      paymentLabel: paymentLabel,
+      deliveryLabel: deliveryLabel,
+      placedAt: placedAt,
+    );
+  }
 
   factory _AdminOrderView.fromDoc(
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
@@ -527,9 +768,17 @@ class _AdminOrderView {
     final userPhone =
         (data['user']?['phone'] ?? data['phone'] ?? '').toString();
     final stage = (data['stage'] ?? 'placed').toString();
+    final deliveryType = (data['delivery']?['type'] ?? '').toString();
+    final tableNumber = (data['delivery']?['tableNumber'] ?? '').toString();
+    final address = (data['delivery']?['address'] ?? '').toString();
+    final deliveryLabel = deliveryType == 'table'
+        ? 'Delivery: Table ${tableNumber.isEmpty ? '-' : tableNumber}'
+        : 'Delivery: ${address.isEmpty ? 'Doorstep' : address}';
+    final placedAt = (data['placedAt'] as Timestamp?)?.toDate();
 
     return _AdminOrderView(
       id: doc.id,
+      userId: (data['userId'] ?? '').toString(),
       orderNumber: orderNumber,
       userName: userName,
       userPhone: userPhone,
@@ -537,6 +786,8 @@ class _AdminOrderView {
       stage: stage,
       total: total,
       paymentLabel: paymentLabel.isEmpty ? 'Cash' : paymentLabel,
+      deliveryLabel: deliveryLabel,
+      placedAt: placedAt,
     );
   }
 }

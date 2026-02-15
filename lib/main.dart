@@ -1,6 +1,7 @@
 // import 'package:dine_ease/features/auth/auth_gate.dart';
 import 'package:dine_ease/features/onboarding/splash_page.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'core/services/push_notifications_service.dart';
 import 'core/state/app_state.dart';
 import 'package:flutter/material.dart';
 import 'core/theme/app_colors.dart';
@@ -21,12 +22,15 @@ class MyApp extends StatelessWidget {
   MyApp({super.key});
 
   final AppState _state = AppState();
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
+    PushNotificationsService.initialize(_navigatorKey);
     return MaterialApp(
       title: 'DineEase',
       debugShowCheckedModeBanner: false,
+      navigatorKey: _navigatorKey,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
         useMaterial3: true,

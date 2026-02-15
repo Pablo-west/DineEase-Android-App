@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dine_ease/global.dart';
 import 'package:flutter/material.dart';
 import '../models/food_item.dart';
 import '../theme/app_colors.dart';
@@ -20,6 +21,8 @@ class CartItemTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final safeImagePath = item.imagePath.trim();
+    final isSpecialScaled = safeImagePath == kSpecialScaledImageUrl;
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(12),
@@ -38,23 +41,26 @@ class CartItemTile extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(14),
-            child: item.imagePath.startsWith('http')
-                ? CachedNetworkImage(
-                    imageUrl: item.imagePath,
-                    width: 64,
-                    height: 64,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => const Center(
-                      child: SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+            child: safeImagePath.startsWith('http')
+                ? Transform.scale(
+                    scale: isSpecialScaled ? 0.9 : 1.0,
+                    child: CachedNetworkImage(
+                      imageUrl: safeImagePath,
+                      width: 64,
+                      height: 64,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => const Center(
+                        child: SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                       ),
+                      errorWidget: (context, url, error) =>
+                          const Icon(Icons.broken_image_outlined),
                     ),
-                    errorWidget: (context, url, error) =>
-                        const Icon(Icons.broken_image_outlined),
                   )
-                : item.imagePath.trim().isEmpty
+                : safeImagePath.isEmpty
                     ? Container(
                         width: 64,
                         height: 64,
@@ -63,7 +69,7 @@ class CartItemTile extends StatelessWidget {
                         child: const Icon(Icons.broken_image_outlined),
                       )
                     : Image.asset(
-                        item.imagePath,
+                        safeImagePath,
                         width: 64,
                         height: 64,
                         fit: BoxFit.cover,

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:dine_ease/core/data/sample_data.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:dine_ease/core/data/food_categories.dart';
 import 'package:dine_ease/core/models/food_item.dart';
 import 'package:dine_ease/core/state/app_state.dart';
 import 'package:dine_ease/core/widgets/app_logo_title.dart';
@@ -10,7 +11,10 @@ import 'package:dine_ease/core/widgets/delivery_destination_sheet.dart';
 import 'package:dine_ease/core/widgets/food_card.dart';
 import 'package:dine_ease/features/food_details/food_details_page.dart';
 import 'package:dine_ease/features/home/view_all_page.dart';
+import 'package:dine_ease/features/home/user_notices_page.dart';
 import 'package:dine_ease/features/search/filter_search_page.dart';
+import 'package:dine_ease/features/admin/widgets/food_editor_sheet.dart';
+import 'package:dine_ease/global.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
@@ -27,7 +31,7 @@ class HomePage extends StatelessWidget {
           ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
             children: [
-              const AppLogoTitle(),
+              _homeHeader(context),
               const SizedBox(height: 14),
               // _heroBanner(),
               // const SizedBox(height: 14),
@@ -39,12 +43,21 @@ class HomePage extends StatelessWidget {
               const SizedBox(height: 20),
               _categories(context),
               const SizedBox(height: 22),
-              _sectionHeader('Popular Food'),
+              _sectionHeader(
+                'Popular Food',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ViewAllPopularPage(),
+                  ),
+                ),
+              ),
               const SizedBox(height: 12),
               _foodsStream(
                 context,
                 type: 'popularFoods',
                 isHorizontal: true,
+                isAdmin: state.isAdmin,
               ),
               const SizedBox(height: 24),
               _sectionHeader(
@@ -61,6 +74,7 @@ class HomePage extends StatelessWidget {
                 context,
                 type: 'deliciousFoods',
                 isHorizontal: false,
+                isAdmin: state.isAdmin,
               ),
               const SizedBox(height: 80),
             ],
@@ -81,37 +95,83 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  // Widget _heroBanner() {
-  //   return ClipRRect(
-  //     borderRadius: BorderRadius.circular(22),
-  //     child: CachedNetworkImage(
-  //       imageUrl:
-  //           'https://static.wixstatic.com/media/a0f741_213388a947a84038a956d91682435f4b~mv2.jpg?dn=LanyardBlack.jpg',
-  //       height: 150,
-  //       width: double.infinity,
-  //       fit: BoxFit.cover,
-  //       placeholder: (context, url) => Container(
-  //         height: 150,
-  //         color: AppColors.muted,
-  //         alignment: Alignment.center,
-  //         child: const SizedBox(
-  //           height: 28,
-  //           width: 28,
-  //           child: CircularProgressIndicator(strokeWidth: 2),
-  //         ),
-  //       ),
-  //       errorWidget: (context, url, error) => Container(
-  //         height: 150,
-  //         color: AppColors.muted,
-  //         alignment: Alignment.center,
-  //         child: const Icon(Icons.broken_image_outlined),
-  //       ),
-  //       errorListener: (error) {
-  //         debugPrint('Home hero image load failed: $error');
-  //       },
-  //     ),
-  //   );
-  // }
+  Widget _homeHeader(BuildContext context) {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    return Row(
+      children: [
+        const Expanded(child: AppLogoTitle()),
+        const SizedBox(width: 10),
+        if (userId != null)
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('notices')
+                .where('userId', isEqualTo: userId)
+                .where('read', isEqualTo: false)
+                .snapshots(),
+            builder: (context, snapshot) {
+              final count = snapshot.data?.docs.length ?? 0;
+              return GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => UserNoticesPage(userId: userId),
+                  ),
+                ),
+                child: Container(
+                  height: 42,
+                  width: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.card,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.muted),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: AppColors.shadow,
+                        blurRadius: 8,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Center(
+                        child: Icon(Icons.notifications_none_outlined),
+                      ),
+                      if (count > 0)
+                        Positioned(
+                          right: -4,
+                          top: -4,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            constraints: const BoxConstraints(minWidth: 18),
+                            child: Text(
+                              count > 99 ? '99+' : '$count',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
 
   Widget _destinationBanner(BuildContext context) {
     final state = AppScope.of(context);
@@ -235,23 +295,38 @@ class HomePage extends StatelessWidget {
   Widget _categories(BuildContext context) {
     return SizedBox(
       height: 50,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          for (final category in foodCategories)
-            CategoryChip(
-              emoji: category['emoji']!,
-              label: category['label']!,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => FilterSearchPage(
-                    initialCategory: category['label']!,
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('food_categories')
+            .orderBy('label')
+            .snapshots(),
+        builder: (context, snapshot) {
+          final labels = snapshot.hasData
+              ? snapshot.data!.docs
+                  .map((doc) => (doc.data()['label'] ?? '').toString())
+                  .toList(growable: false)
+              : defaultFoodCategoryLabels;
+          final categories = normalizeCategoryLabels(labels);
+
+          return ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final label in categories)
+                CategoryChip(
+                  emoji: categoryEmojiForLabel(label),
+                  label: label,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => FilterSearchPage(
+                        initialCategory: label,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -279,6 +354,7 @@ class HomePage extends StatelessWidget {
     BuildContext context, {
     required String type,
     required bool isHorizontal,
+    required bool isAdmin,
   }) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance.collection('foods').snapshots(),
@@ -302,7 +378,12 @@ class HomePage extends StatelessWidget {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
-                for (final item in items) _buildFoodCard(context, item),
+                for (final item in items)
+                  _buildFoodCard(
+                    context,
+                    item,
+                    isAdmin: isAdmin,
+                  ),
               ],
             ),
           );
@@ -310,10 +391,16 @@ class HomePage extends StatelessWidget {
         return Column(
           children: [
             for (final item in items)
-              _DeliciousTile(
-                item: item,
+              GestureDetector(
                 onTap: () => _openDetails(context, item),
-                onAdd: () => _addToCart(context, item),
+                child: _DeliciousTile(
+                  item: item,
+                  isAdmin: isAdmin,
+                  onTap: () => _openDetails(context, item),
+                  onAdd: () => isAdmin
+                      ? _openDetails(context, item)
+                      : _addToCart(context, item),
+                ),
               ),
           ],
         );
@@ -321,7 +408,14 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildFoodCard(BuildContext context, FoodItem item) {
+  Widget _buildFoodCard(
+    BuildContext context,
+    FoodItem item, {
+    required bool isAdmin,
+  }) {
+    if (isAdmin) {
+      return _buildAdminFoodCard(context, item);
+    }
     return FoodCard(
       title: item.title,
       subtitle: item.subtitle,
@@ -329,6 +423,127 @@ class HomePage extends StatelessWidget {
       price: item.priceLabel,
       onAdd: () => _addToCart(context, item),
       onTap: () => _openDetails(context, item),
+    );
+  }
+
+  Widget _buildAdminFoodCard(BuildContext context, FoodItem item) {
+    final safeImagePath = item.imagePath.trim();
+    final isSpecialScaled = safeImagePath == kSpecialScaledImageUrl;
+    return Container(
+      width: 290,
+      margin: const EdgeInsets.only(right: 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.shadow,
+            blurRadius: 12,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: safeImagePath.startsWith('http')
+                  ? Transform.scale(
+                      scale: isSpecialScaled ? 0.9 : 1.0,
+                      child: CachedNetworkImage(
+                        imageUrl: safeImagePath,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => const Center(
+                          child: SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => const Center(
+                          child: Icon(Icons.broken_image_outlined),
+                        ),
+                      ),
+                    )
+                  : safeImagePath.isEmpty
+                      ? Container(
+                          color: AppColors.muted,
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.broken_image_outlined),
+                        )
+                      : Image.asset(
+                          safeImagePath,
+                          fit: BoxFit.cover,
+                        ),
+            ),
+            Positioned.fill(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black54,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 14,
+              right: 14,
+              bottom: 14,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    style: AppTextStyles.title.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.priceLabel,
+                    style: AppTextStyles.price.copyWith(
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 34,
+                    child: ElevatedButton(
+                      onPressed: () => _openDetails(context, item),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 6,
+                        ),
+                      ),
+                      child: const Text(
+                        'View Food',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -375,552 +590,43 @@ class HomePage extends StatelessWidget {
   }
 
   Future<void> _showAddFoodSheet(BuildContext context) async {
-    final formKey = GlobalKey<FormState>();
-    final titleController = TextEditingController();
-    final subtitleController = TextEditingController();
-    final categoryController = TextEditingController();
-    final priceController = TextEditingController();
-    final ratingController = TextEditingController(text: '4.5');
-    final timeController = TextEditingController();
-    final caloriesController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final ingredientsController = TextEditingController();
-    final imageUrlController = TextEditingController(
-      text: 'https://picsum.photos/seed/dineease/800/600',
-    );
-    bool popular = true;
-    bool delicious = true;
-    String previewUrl = imageUrlController.text.trim();
-    double ratingValue = 4.5;
-    const categories = [
-      'Heavy Meal',
-      'Rice & Bean Meal',
-      'Side Dishes & Snacks',
-    ];
-    String? selectedCategory;
+    final categories = await _loadCategoryLabels();
+    if (!context.mounted) return;
 
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.background,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-              ),
-              child: SingleChildScrollView(
-                child: Form(
-                  key: formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Add Food', style: AppTextStyles.heading),
-                          Container(
-                            height: 36,
-                            width: 36,
-                            decoration: BoxDecoration(
-                              color: AppColors.card,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: IconButton(
-                              onPressed: () => Navigator.pop(context),
-                              icon: const Icon(Icons.close),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      _imagePreview(previewUrl),
-                      const SizedBox(height: 14),
-                      _sheetField(
-                        'Image URL',
-                        controller: imageUrlController,
-                        onChanged: (value) =>
-                            setState(() => previewUrl = value.trim()),
-                        maxLines: 2,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Image URL is required';
-                          }
-                          if (!value.trim().startsWith('http')) {
-                            return 'Use a valid https URL';
-                          }
-                          return null;
-                        },
-                      ),
-                      _sheetField(
-                        'Title',
-                        controller: titleController,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Title is required';
-                          }
-                          return null;
-                        },
-                      ),
-                      _sheetField('Subtitle', controller: subtitleController),
-                      DropdownButtonFormField<String>(
-                        value: selectedCategory,
-                        decoration: InputDecoration(
-                          labelText: 'Category',
-                          filled: true,
-                          fillColor: AppColors.card,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                        items: [
-                          for (final category in categories)
-                            DropdownMenuItem(
-                              value: category,
-                              child: Text(category),
-                            ),
-                        ],
-                        onChanged: (value) {
-                          setState(() => selectedCategory = value);
-                          categoryController.text = value ?? '';
-                        },
-                        validator: (value) =>
-                            value == null ? 'Category is required' : null,
-                      ),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _sheetField(
-                              'Price (GHS)',
-                              controller: priceController,
-                              keyboardType: TextInputType.number,
-                              validator: (value) {
-                                final number =
-                                    double.tryParse(value?.trim() ?? '');
-                                if (number == null || number <= 0) {
-                                  return 'Enter a valid price';
-                                }
-                                return null;
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Rating', style: AppTextStyles.subtitle),
-                                Slider(
-                                  value: ratingValue,
-                                  min: 1,
-                                  max: 5,
-                                  divisions: 8,
-                                  label: ratingValue.toStringAsFixed(1),
-                                  onChanged: (value) {
-                                    setState(() => ratingValue = value);
-                                    ratingController.text =
-                                        value.toStringAsFixed(1);
-                                  },
-                                ),
-                                Text(
-                                  ratingValue.toStringAsFixed(1),
-                                  style: AppTextStyles.subtitle,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: timeController,
-                              readOnly: true,
-                              decoration: InputDecoration(
-                                labelText: 'Time',
-                                filled: true,
-                                fillColor: AppColors.card,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: BorderSide.none,
-                                ),
-                              ),
-                              onTap: () async {
-                                final minutes = await _pickDuration(context);
-                                if (minutes != null) {
-                                  final min = (minutes - 2).clamp(1, 999);
-                                  final max = minutes + 2;
-                                  setState(() {
-                                    timeController.text = '$min-$max min';
-                                  });
-                                }
-                              },
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Time is required';
-                                }
-                                return null;
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _sheetField(
-                              'Calories',
-                              controller: caloriesController,
-                              keyboardType: TextInputType.number,
-                              validator: (value) {
-                                if ((value ?? '').trim().isEmpty) return null;
-                                final number = int.tryParse(value!.trim());
-                                if (number == null || number < 0) {
-                                  return 'Enter a valid number';
-                                }
-                                return null;
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      _sheetField(
-                        'Description',
-                        controller: descriptionController,
-                        maxLines: 3,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Description is required';
-                          }
-                          return null;
-                        },
-                      ),
-                      _sheetField(
-                        'Ingredients (comma separated)',
-                        controller: ingredientsController,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Ingredients are required';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.card,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Placement', style: AppTextStyles.title),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Checkbox(
-                                  value: popular,
-                                  onChanged: (value) =>
-                                      setState(() => popular = value ?? false),
-                                ),
-                                const Text('Popular Food'),
-                                const SizedBox(width: 12),
-                                Checkbox(
-                                  value: delicious,
-                                  onChanged: (value) => setState(
-                                      () => delicious = value ?? false),
-                                ),
-                                const Text('Delicious Foods'),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            if (formKey.currentState?.validate() != true) {
-                              return;
-                            }
-                            _showSavingDialog(context);
-                            final price =
-                                double.tryParse(priceController.text.trim()) ??
-                                    0;
-                            final rating = double.tryParse(
-                                  ratingController.text.trim(),
-                                ) ??
-                                0;
-                            final calories = int.tryParse(
-                                  caloriesController.text.trim(),
-                                ) ??
-                                0;
-                            final types = <String>[];
-                            if (popular) types.add('Popular Food');
-                            if (delicious) types.add('Delicious Foods');
-                            final ingredients = ingredientsController.text
-                                .split(',')
-                                .map((e) => e.trim())
-                                .where((e) => e.isNotEmpty)
-                                .toList();
-
-                            try {
-                              await FirebaseFirestore.instance
-                                  .collection('foods')
-                                  .add({
-                                'title': titleController.text.trim(),
-                                'subtitle': subtitleController.text.trim(),
-                                'category': categoryController.text.trim(),
-                                'description':
-                                    descriptionController.text.trim(),
-                                'imageUrl': imageUrlController.text.trim(),
-                                'time': timeController.text.trim(),
-                                'price': price,
-                                'rating': rating,
-                                'calories': calories,
-                                'ingredients': ingredients,
-                                'foodType': types,
-                                'createdAt': FieldValue.serverTimestamp(),
-                              });
-                              if (context.mounted) {
-                                Navigator.pop(context); // close loading
-                                Navigator.pop(context); // close sheet
-                                showInfoDialog(
-                                  context,
-                                  title: 'Food added',
-                                  message:
-                                      'Food was added successfully to the menu.',
-                                );
-                              }
-                            } on FirebaseException catch (e) {
-                              if (context.mounted) {
-                                Navigator.pop(context); // close loading
-                                showInfoDialog(
-                                  context,
-                                  title: 'Add failed',
-                                  message: e.message ??
-                                      'You do not have permission to add foods.',
-                                );
-                              }
-                            } catch (_) {
-                              if (context.mounted) {
-                                Navigator.pop(context); // close loading
-                                showInfoDialog(
-                                  context,
-                                  title: 'Add failed',
-                                  message: 'Something went wrong. Try again.',
-                                );
-                              }
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                          ),
-                          child: const Text(
-                            'Save Food',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
+    await showFoodEditorSheet(
+      context,
+      categories: categories,
+      onSave: (data, _) async {
+        await FirebaseFirestore.instance.collection('foods').add(data);
       },
     );
   }
 
-  Widget _imagePreview(String url) {
-    final safeUrl = url.trim();
-    return Container(
-      height: 160,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(
-            color: AppColors.shadow,
-            blurRadius: 12,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: safeUrl.isEmpty
-            ? const Center(child: Icon(Icons.image_outlined, size: 40))
-            : CachedNetworkImage(
-                imageUrl: safeUrl,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => const Center(
-                  child: SizedBox(
-                    height: 28,
-                    width: 28,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
-                errorWidget: (context, url, error) => const Center(
-                  child: Icon(Icons.broken_image_outlined),
-                ),
-              ),
-      ),
-    );
-  }
-
-  void _showSavingDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-          child: Row(
-            children: [
-              const SizedBox(
-                height: 36,
-                width: 36,
-                child: CircularProgressIndicator(strokeWidth: 3),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  'Saving food...',
-                  style: AppTextStyles.subtitle,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<int?> _pickDuration(BuildContext context) async {
-    int selected = 20;
-    return showModalBottomSheet<int>(
-      context: context,
-      backgroundColor: AppColors.background,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    height: 4,
-                    width: 48,
-                    decoration: BoxDecoration(
-                      color: AppColors.muted,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text('Cooking Time', style: AppTextStyles.heading),
-                  const SizedBox(height: 6),
-                  Text(
-                    '$selected min',
-                    style: AppTextStyles.subtitle.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Slider(
-                    value: selected.toDouble(),
-                    min: 5,
-                    max: 60,
-                    divisions: 11,
-                    label: '$selected min',
-                    onChanged: (value) =>
-                        setState(() => selected = value.round()),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, selected),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                      ),
-                      child: const Text(
-                        'Set Time',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _sheetField(
-    String label, {
-    required TextEditingController controller,
-    String? hint,
-    int maxLines = 1,
-    TextInputType? keyboardType,
-    String? Function(String?)? validator,
-    void Function(String)? onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: keyboardType,
-        maxLines: maxLines,
-        onChanged: onChanged,
-        validator: validator,
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          filled: true,
-          fillColor: AppColors.card,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
-          ),
-        ),
-      ),
-    );
+  Future<List<String>> _loadCategoryLabels() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('food_categories')
+          .orderBy('label')
+          .get();
+      final labels = snapshot.docs
+          .map((doc) => (doc.data()['label'] ?? '').toString())
+          .toList(growable: false);
+      return normalizeCategoryLabels(labels);
+    } catch (_) {
+      return List<String>.from(defaultFoodCategoryLabels);
+    }
   }
 }
 
 class _DeliciousTile extends StatelessWidget {
   final FoodItem item;
+  final bool isAdmin;
   final VoidCallback onTap;
   final VoidCallback onAdd;
 
   const _DeliciousTile({
     required this.item,
+    required this.isAdmin,
     required this.onTap,
     required this.onAdd,
   });
@@ -968,31 +674,36 @@ class _DeliciousTile extends StatelessWidget {
   }
 
   Widget _image() {
+    final safeImagePath = item.imagePath.trim();
+    final isSpecialScaled = safeImagePath == kSpecialScaledImageUrl;
     return GestureDetector(
-      onTap: onTap,
+      onTap: isAdmin ? null : onTap,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: item.imagePath.startsWith('https')
-            ? CachedNetworkImage(
-                imageUrl: item.imagePath,
-                width: 90,
-                height: 90,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => const Center(
-                  child: SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+        child: safeImagePath.startsWith('https')
+            ? Transform.scale(
+                scale: isSpecialScaled ? 0.9 : 1.0,
+                child: CachedNetworkImage(
+                  imageUrl: safeImagePath,
+                  width: 90,
+                  height: 90,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => const Center(
+                    child: SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   ),
+                  errorWidget: (context, url, error) =>
+                      const Icon(Icons.broken_image_outlined),
+                  errorListener: (error) {
+                    debugPrint('Home tile image load failed: $safeImagePath');
+                    debugPrint('Home tile image error: $error');
+                  },
                 ),
-                errorWidget: (context, url, error) =>
-                    const Icon(Icons.broken_image_outlined),
-                errorListener: (error) {
-                  debugPrint('Home tile image load failed: ${item.imagePath}');
-                  debugPrint('Home tile image error: $error');
-                },
               )
-            : item.imagePath.trim().isEmpty
+            : safeImagePath.isEmpty
                 ? Container(
                     width: 90,
                     height: 90,
@@ -1001,7 +712,7 @@ class _DeliciousTile extends StatelessWidget {
                     child: const Icon(Icons.broken_image_outlined),
                   )
                 : Image.asset(
-                    item.imagePath,
+                    safeImagePath,
                     width: 90,
                     height: 90,
                     fit: BoxFit.cover,
@@ -1025,23 +736,42 @@ class _DeliciousTile extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(item.priceLabel, style: AppTextStyles.price),
-            ElevatedButton(
-              onPressed: onAdd,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
+            if (!isAdmin)
+              ElevatedButton(
+                onPressed: onAdd,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 8,
+                  ),
                 ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 8,
+                child: const Text(
+                  'Add to Cart',
+                  style: TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              )
+            else
+              ElevatedButton(
+                onPressed: onAdd,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 8,
+                  ),
+                ),
+                child: const Text(
+                  'View Food',
+                  style: TextStyle(color: Colors.white, fontSize: 12),
                 ),
               ),
-              child: const Text(
-                'Add to Cart',
-                style: TextStyle(color: Colors.white, fontSize: 12),
-              ),
-            ),
           ],
         ),
       ],

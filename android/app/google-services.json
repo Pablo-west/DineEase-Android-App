@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "328696000707",
+    "project_id": "dineease-f81e5",
+    "storage_bucket": "dineease-f81e5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:328696000707:android:3bb813d3dd9d47c319f276",
+        "android_client_info": {
+          "package_name": "com.example.dine_ease"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "328696000707-f7qd1cg4bv3nvgvok6f6t13gsi4d2v5r.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.dine_ease",
+            "certificate_hash": "4b355985ff0d83f75131036b26af35f86f65d12e"
+          }
+        },
+        {
+          "client_id": "328696000707-0hg424ofn2hn00m4hi2cv28brvfnlb5j.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSRLfkEhlbGBYy2KxxhPx1AKpYnukCbQs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "328696000707-0hg424ofn2hn00m4hi2cv28brvfnlb5j.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

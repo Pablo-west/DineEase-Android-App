@@ -1,10 +1,149 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dine_ease/global.dart';
 import '../../core/models/food_item.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../food_details/food_details_page.dart';
+
+class ViewAllPopularPage extends StatelessWidget {
+  const ViewAllPopularPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _topBar(context),
+              const SizedBox(height: 16),
+              Text('Popular Items', style: AppTextStyles.heading),
+              const SizedBox(height: 12),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream:
+                      FirebaseFirestore.instance.collection('foods').snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(
+                        child: Text(
+                          'Loading meals...',
+                          style: AppTextStyles.subtitle,
+                        ),
+                      );
+                    }
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No meals available',
+                          style: AppTextStyles.subtitle,
+                        ),
+                      );
+                    }
+                    final items = snapshot.data!.docs
+                        .map(_foodFromDoc)
+                        .where((item) => item.foodTypes.contains('popularFoods'))
+                        .toList(growable: false);
+                    if (items.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No meals available',
+                          style: AppTextStyles.subtitle,
+                        ),
+                      );
+                    }
+                    return GridView.builder(
+                      itemCount: items.length,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
+                        childAspectRatio: 0.78,
+                      ),
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        return _FoodGridCard(
+                          title: item.title,
+                          price: item.priceLabel,
+                          imagePath: item.imagePath,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => FoodDetailsPage(item: item),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _topBar(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        GestureDetector(
+          onTap: () => Navigator.of(context).maybePop(),
+          child: Container(
+            height: 40,
+            width: 40,
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.arrow_back),
+          ),
+        ),
+        Container(
+          height: 40,
+          width: 40,
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: const Icon(Icons.search),
+        ),
+      ],
+    );
+  }
+
+  FoodItem _foodFromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+    final rawImage = FoodItem.readStringField(
+      data,
+      const ['imageUrl', 'imageUrl ', 'imageURL'],
+    );
+    return FoodItem(
+      id: doc.id,
+      title: (data['title'] ?? '').toString(),
+      subtitle: (data['subtitle'] ?? '').toString(),
+      category: (data['category'] ?? '').toString(),
+      imagePath: FoodItem.normalizeImagePath(rawImage),
+      description: (data['description'] ?? '').toString(),
+      ingredients: (data['ingredients'] as List? ?? [])
+          .map((e) => e.toString())
+          .toList(),
+      foodTypes: FoodItem.normalizeFoodTypes(data['foodType'] as List?),
+      price: (data['price'] as num?)?.toDouble() ?? 0,
+      rating: (data['rating'] as num?)?.toDouble() ?? 0,
+      time: (data['time'] ?? '').toString(),
+      calories: (data['calories'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
 
 class ViewAllDeliciousPage extends StatelessWidget {
   const ViewAllDeliciousPage({super.key});
@@ -159,6 +298,8 @@ class _FoodGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final safeImagePath = imagePath.trim();
+    final isSpecialScaled = safeImagePath == kSpecialScaledImageUrl;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -180,29 +321,32 @@ class _FoodGridCard extends StatelessWidget {
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(22),
               ),
-              child: imagePath.startsWith('http')
-                  ? CachedNetworkImage(
-                      imageUrl: imagePath,
-                      height: 120,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => const Center(
-                        child: SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+              child: safeImagePath.startsWith('http')
+                  ? Transform.scale(
+                      scale: isSpecialScaled ? 0.9 : 1.0,
+                      child: CachedNetworkImage(
+                        imageUrl: safeImagePath,
+                        height: 120,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => const Center(
+                          child: SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
                         ),
+                        errorWidget: (context, url, error) =>
+                            const Icon(Icons.broken_image_outlined),
+                        errorListener: (error) {
+                          debugPrint(
+                            'ViewAll image load failed: $safeImagePath',
+                          );
+                          debugPrint('ViewAll image error: $error');
+                        },
                       ),
-                      errorWidget: (context, url, error) =>
-                          const Icon(Icons.broken_image_outlined),
-                      errorListener: (error) {
-                        debugPrint(
-                          'ViewAll image load failed: $imagePath',
-                        );
-                        debugPrint('ViewAll image error: $error');
-                      },
                     )
-                  : imagePath.trim().isEmpty
+                  : safeImagePath.isEmpty
                       ? Container(
                           height: 120,
                           width: double.infinity,
@@ -211,7 +355,7 @@ class _FoodGridCard extends StatelessWidget {
                           child: const Icon(Icons.broken_image_outlined),
                         )
                       : Image.asset(
-                          imagePath,
+                          safeImagePath,
                           height: 120,
                           width: double.infinity,
                           fit: BoxFit.cover,

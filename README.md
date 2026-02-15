@@ -80,10 +80,26 @@ service cloud.firestore {
     }
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /fcmTokens/{tokenId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     match /foods/{foodId} {
       allow read: if true;
       allow create, update, delete: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+          in ['admin','chef'];
+    }
+    match /food_categories/{categoryId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+          in ['admin','chef'];
+    }
+    match /notices/{noticeId} {
+      allow read, update: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
           in ['admin','chef'];
     }

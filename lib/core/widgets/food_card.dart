@@ -2,6 +2,8 @@
 
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dine_ease/core/state/app_state.dart';
+import 'package:dine_ease/global.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_text_styles.dart';
 
@@ -25,6 +27,8 @@ class FoodCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = AppScope.of(context).isAdmin;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -157,29 +161,30 @@ class FoodCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 10),
                           // Add Button
-                          ElevatedButton(
-                            onPressed: onAdd,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  const Color(0xFFFF6600), // Hot orange
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                // vertical: 2,
+                          if (isAdmin)
+                            ElevatedButton(
+                              onPressed: onAdd,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    const Color(0xFFFF6600), // Hot orange
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  // vertical: 2,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24),
+                              child: const Text(
+                                'Add to Cart',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
-                            child: const Text(
-                              'Add to Cart',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -194,35 +199,40 @@ class FoodCard extends StatelessWidget {
   }
 
   Widget _imageBackground() {
-    if (imagePath.trim().isEmpty) {
+    final safeImagePath = imagePath.trim();
+    final isSpecialScaled = safeImagePath == kSpecialScaledImageUrl;
+    if (safeImagePath.isEmpty) {
       return Container(
         color: Colors.black12,
         alignment: Alignment.center,
         child: const Icon(Icons.broken_image_outlined, size: 32),
       );
     }
-    if (imagePath.startsWith('http')) {
-      return CachedNetworkImage(
-        imageUrl: imagePath,
-        fit: BoxFit.cover,
-        placeholder: (context, url) => const Center(
-          child: SizedBox(
-            height: 28,
-            width: 28,
-            child: CircularProgressIndicator(strokeWidth: 2),
+    if (safeImagePath.startsWith('http')) {
+      return Transform.scale(
+        scale: isSpecialScaled ? 0.9 : 1.0,
+        child: CachedNetworkImage(
+          imageUrl: safeImagePath,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => const Center(
+            child: SizedBox(
+              height: 28,
+              width: 28,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
           ),
+          errorWidget: (context, url, error) => const Center(
+            child: Icon(Icons.broken_image_outlined),
+          ),
+          errorListener: (error) {
+            debugPrint('FoodCard image load failed: $safeImagePath');
+            debugPrint('FoodCard image error: $error');
+          },
         ),
-        errorWidget: (context, url, error) => const Center(
-          child: Icon(Icons.broken_image_outlined),
-        ),
-        errorListener: (error) {
-          debugPrint('FoodCard image load failed: $imagePath');
-          debugPrint('FoodCard image error: $error');
-        },
       );
     }
     return Image.asset(
-      imagePath,
+      safeImagePath,
       fit: BoxFit.cover,
     );
   }
