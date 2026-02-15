@@ -1,67 +1,69 @@
 # DineEase
 
-DineEase is a Flutter app for food ordering with customer and admin/chef flows.  
-Customers browse meals, place orders, and track order stages.  
-Admins/chefs manage foods and update order stages in real time.
+DineEase is a Flutter food-ordering app with customer and admin/chef flows.
+
+Customers can browse meals, place orders, track progress, and view order notices.  
+Admins/chefs can manage orders, foods, and categories.
 
 ## Features
 
 - Email/password authentication
-- Customer ordering flow with delivery destination and payment mode
-- Real-time order tracking (placed → preparing → in kitchen → delivered)
-- Admin/chef dashboard (Orders + Foods management)
-- Firebase Firestore as backend
-- Image caching for food photos
+- Customer cart + checkout flow
+- Delivery destination support (doorstep/table)
+- Real-time order stage updates
+- Admin/chef order management:
+  - stage updates
+  - search
+  - stage filtering
+  - date range filtering
+  - filtered-orders view page
+- Admin/chef food management:
+  - add/edit/delete foods
+  - category create/rename/delete
+  - foods summary panel
+- Dynamic categories (from Firestore, not hardcoded)
+- Notification center:
+  - notice list page
+  - grouped by order number and food names
+  - unread badge count on Home
+- Popular and Delicious “View All” pages
 
 ## Tech Stack
 
-- Flutter (Android/iOS/Web)
+- Flutter
 - Firebase Auth
 - Cloud Firestore
 - Cached Network Image
+- Firebase Messaging (client integration)
 
 ## Project Structure
 
-- `lib/features/` UI flows for auth, home, cart, orders, profile, admin
-- `lib/core/` shared models, widgets, and app state
+- `lib/features/` UI features (auth, home, cart, orders, profile, admin)
+- `lib/core/` shared state, services, widgets, themes
+- `functions/` Firebase Cloud Functions (order stage notification trigger)
 - `assets/` images and icons
 
-## Firebase Setup (Required)
+## Firebase Setup
 
-This repo does **not** include Firebase config files.  
-You must add them locally after cloning.
+### 1) Create Firebase project
 
-### 1) Create Firebase Project
+1. Create project in Firebase Console
+2. Enable Auth (Email/Password)
+3. Create Firestore database
 
-1. Go to Firebase Console.
-2. Create a new project.
-3. Enable **Authentication → Email/Password**.
-4. Create Firestore database.
+### 2) Add config files
 
-### 2) Add Android Firebase Config
+Android:
+- Download `google-services.json`
+- Place in `android/app/google-services.json`
 
-1. In Firebase Console → Project Settings → **Your Apps** → Add Android app.
-2. Package name must match `applicationId` in `android/app/build.gradle`.
-3. Download `google-services.json`.
-4. Place it in:
+iOS (optional):
+- Download `GoogleService-Info.plist`
+- Place in `ios/Runner/GoogleService-Info.plist`
 
-```
-android/app/google-services.json
-```
+### 3) Firestore Rules
 
-### 3) Add iOS Firebase Config (Optional)
-
-1. Add iOS app in Firebase Console.
-2. Download `GoogleService-Info.plist`.
-3. Place it in:
-
-```
-ios/Runner/GoogleService-Info.plist
-```
-
-### 4) Firebase Firestore Rules
-
-Use the following rules (adjust if needed):
+Use:
 
 ```js
 rules_version = '2';
@@ -74,82 +76,100 @@ service cloud.firestore {
       allow read, update, delete: if request.auth != null
         && (
           resource.data.userId == request.auth.uid ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
-            in ['admin','chef']
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'chef']
         );
     }
+
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+
       match /fcmTokens/{tokenId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
+
     match /foods/{foodId} {
       allow read: if true;
       allow create, update, delete: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
-          in ['admin','chef'];
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'chef'];
     }
+
     match /food_categories/{categoryId} {
       allow read: if true;
       allow create, update, delete: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
-          in ['admin','chef'];
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'chef'];
     }
+
     match /notices/{noticeId} {
       allow read, update: if request.auth != null
         && resource.data.userId == request.auth.uid;
       allow create: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
-          in ['admin','chef'];
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'chef'];
     }
   }
 }
 ```
 
-## Admin / Chef Access
+### 4) Admin/Chef role
 
-To enable admin access, create a user document in Firestore:
+Set role in Firestore:
 
-```
+```txt
 users/{uid} {
-  role: "admin"
+  role: "admin" // or "chef"
 }
 ```
 
-Admins can:
-- View all orders
-- Search + filter orders
-- Update order stage
-- Add/edit food items
+## Notifications
+
+### In-app notices (works on Spark plan)
+
+- When admin changes order stage, app writes a notice document
+- User sees notices on notifications page
+- Home icon shows unread count
+
+### Phone push notifications (requires server trigger)
+
+This repo includes `functions/index.js` trigger `onOrderStageChanged`.  
+To send push notifications while app is closed, deploy Cloud Functions.
+
+Important:
+- Cloud Functions deployment requires Firebase Blaze plan.
+- If not on Blaze, in-app notice list + unread badge still work.
+
+## Cloud Functions Deploy
+
+From project root:
+
+```bash
+cd functions
+npm install
+cd ..
+firebase deploy --only functions
+```
+
+Deploy rules:
+
+```bash
+firebase deploy --only firestore:rules
+```
 
 ## Run Locally
 
-1. Install Flutter and dependencies.
-2. Run:
-
-```
+```bash
 flutter pub get
 flutter run
 ```
 
-## Web Build (Optional)
+## Web Build
 
-```
+```bash
 flutter build web
 ```
 
-## Release Build (Android)
+## Android Release Build
 
-```
+```bash
 flutter build apk --release
 ```
 
-## Notes
-
-- `google-services.json` and `GoogleService-Info.plist` are not committed.
-- Do not commit `node_modules/` or build folders.
-
----
-
-Built for DineEase.
