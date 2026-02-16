@@ -49,3 +49,4 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 server/.env
+android/app/google-services.json
