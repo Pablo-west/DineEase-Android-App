@@ -12,6 +12,7 @@ import 'package:dine_ease/core/widgets/food_card.dart';
 import 'package:dine_ease/features/food_details/food_details_page.dart';
 import 'package:dine_ease/features/home/view_all_page.dart';
 import 'package:dine_ease/features/home/user_notices_page.dart';
+import 'package:dine_ease/features/home/user_promotion_page.dart';
 import 'package:dine_ease/features/search/filter_search_page.dart';
 import 'package:dine_ease/features/admin/widgets/food_editor_sheet.dart';
 import 'package:dine_ease/global.dart';
@@ -19,8 +20,25 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  bool _hasShownLoginAd = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || _hasShownLoginAd) return;
+      _hasShownLoginAd = true;
+      await UserPromotionPage.showIfActive(context);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,64 +126,77 @@ class HomePage extends StatelessWidget {
                 .where('userId', isEqualTo: userId)
                 .where('read', isEqualTo: false)
                 .snapshots(),
-            builder: (context, snapshot) {
-              final count = snapshot.data?.docs.length ?? 0;
-              return GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => UserNoticesPage(userId: userId),
-                  ),
-                ),
-                child: Container(
-                  height: 42,
-                  width: 42,
-                  decoration: BoxDecoration(
-                    color: AppColors.card,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.muted),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: AppColors.shadow,
-                        blurRadius: 8,
-                        offset: Offset(0, 4),
+            builder: (context, noticesSnapshot) {
+              final unreadNoticeCount = noticesSnapshot.data?.docs.length ?? 0;
+              return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: FirebaseFirestore.instance
+                    .collection('customers')
+                    .doc(userId)
+                    .collection('notes')
+                    .snapshots(),
+                builder: (context, notesSnapshot) {
+                  final personalNoteCount = (notesSnapshot.data?.docs ?? const [])
+                      .where((doc) => (doc.data()['read'] as bool?) != true)
+                      .length;
+                  final count = unreadNoticeCount + personalNoteCount;
+                  return GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => UserNoticesPage(userId: userId),
                       ),
-                    ],
-                  ),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const Center(
-                        child: Icon(Icons.notifications_none_outlined),
+                    ),
+                    child: Container(
+                      height: 42,
+                      width: 42,
+                      decoration: BoxDecoration(
+                        color: AppColors.card,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.muted),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: AppColors.shadow,
+                            blurRadius: 8,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      if (count > 0)
-                        Positioned(
-                          right: -4,
-                          top: -4,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.redAccent,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            constraints: const BoxConstraints(minWidth: 18),
-                            child: Text(
-                              count > 99 ? '99+' : '$count',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Center(
+                            child: Icon(Icons.notifications_none_outlined),
+                          ),
+                          if (count > 0)
+                            Positioned(
+                              right: -4,
+                              top: -4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.redAccent,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                constraints: const BoxConstraints(minWidth: 18),
+                                child: Text(
+                                  count > 99 ? '99+' : '$count',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               );
             },
           ),
